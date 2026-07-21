@@ -33,18 +33,19 @@ describe("MailClient", () => {
                 })
             );
 
-            await clientWithSlash.sendMail({
+            await clientWithSlash.send({
                 to: "meindonsa1999@gmail.com",
                 subject: "Test",
-                html: "<p>Test</p>",
+                templateType: "simple",
+                text: "Test",
             });
 
             const calledUrl = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
-            expect(calledUrl).toBe("http://localhost:3000/api/mail/send");
+            expect(calledUrl).toBe("http://localhost:3000/api/mail");
         });
     });
 
-    describe("sendMail", () => {
+    describe("send", () => {
         it("envoie une requête POST correcte avec les bons headers", async () => {
             (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
                 new Response(JSON.stringify({ success: true, messageId: "msg-123" }), {
@@ -52,14 +53,16 @@ describe("MailClient", () => {
                 })
             );
 
-            const result = await client.sendMail({
+            const result = await client.send({
                 to: "meindonsa1999@gmail.com",
                 subject: "Bienvenue",
-                html: "<p>Salut</p>",
+                templateType: "welcome",
+                text: "Salut",
+                link: "https://example.com/start",
             });
 
             expect(fetch).toHaveBeenCalledWith(
-                "http://localhost:3000/api/mail/send",
+                "http://localhost:3000/api/mail",
                 expect.objectContaining({
                     method: "POST",
                     headers: {
@@ -69,7 +72,9 @@ describe("MailClient", () => {
                     body: JSON.stringify({
                         to: "meindonsa1999@gmail.com",
                         subject: "Bienvenue",
-                        html: "<p>Salut</p>",
+                        templateType: "welcome",
+                        text: "Salut",
+                        link: "https://example.com/start",
                     }),
                 })
             );
@@ -84,9 +89,10 @@ describe("MailClient", () => {
                 })
             );
 
-            await client.sendMail({
+            await client.send({
                 to: ["meindonsa1999@gmail.com", "b@example.com"],
                 subject: "Test",
+                templateType: "simple",
                 text: "Contenu texte",
             });
 
@@ -94,6 +100,76 @@ describe("MailClient", () => {
                 (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body
             );
             expect(body.to).toEqual(["meindonsa1999@gmail.com", "b@example.com"]);
+        });
+
+        it("envoie une requête pour un template otp avec value", async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+                new Response(JSON.stringify({ success: true, messageId: "otp-1" }), {
+                    status: 200,
+                })
+            );
+
+            await client.send({
+                to: "meindonsa1999@gmail.com",
+                subject: "Votre code",
+                templateType: "otp",
+                text: "Voici votre code :",
+                value: "482913",
+            });
+
+            const body = JSON.parse(
+                (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body
+            );
+            expect(body.templateType).toBe("otp");
+            expect(body.value).toBe("482913");
+        });
+
+        it("envoie une requête avec une pièce jointe", async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+                new Response(JSON.stringify({ success: true, messageId: "att-1" }), {
+                    status: 200,
+                })
+            );
+
+            await client.send({
+                to: "meindonsa1999@gmail.com",
+                subject: "Document",
+                templateType: "simple",
+                text: "Voici le document",
+                attachment: {
+                    filename: "doc.pdf",
+                    content: "base64content",
+                    contentType: "application/pdf",
+                },
+            });
+
+            const body = JSON.parse(
+                (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body
+            );
+            expect(body.attachment).toEqual({
+                filename: "doc.pdf",
+                content: "base64content",
+                contentType: "application/pdf",
+            });
+        });
+
+        it("utilise templateType simple par défaut si non fourni", async () => {
+            (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+                new Response(JSON.stringify({ success: true, messageId: "def-1" }), {
+                    status: 200,
+                })
+            );
+
+            await client.send({
+                to: "meindonsa1999@gmail.com",
+                subject: "Test",
+                text: "Contenu",
+            });
+
+            const body = JSON.parse(
+                (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body
+            );
+            expect(body.templateType).toBeUndefined();
         });
 
         it("lève une MailClientError si le serveur répond avec une erreur", async () => {
@@ -105,10 +181,11 @@ describe("MailClient", () => {
             );
 
             await expect(
-                client.sendMail({
+                client.send({
                     to: "meindonsa1999@gmail.com",
                     subject: "Test",
-                    html: "<p>Test</p>",
+                    templateType: "simple",
+                    text: "Test",
                 })
             ).rejects.toThrow(MailClientError);
         });
@@ -121,10 +198,11 @@ describe("MailClient", () => {
             );
 
             try {
-                await client.sendMail({
+                await client.send({
                     to: "meindonsa1999@gmail.com",
                     subject: "Test",
-                    html: "<p>Test</p>",
+                    templateType: "simple",
+                    text: "Test",
                 });
                 expect.fail("Une erreur aurait dû être levée");
             } catch (err) {
@@ -140,35 +218,13 @@ describe("MailClient", () => {
             );
 
             await expect(
-                client.sendMail({
+                client.send({
                     to: "meindonsa1999@gmail.com",
                     subject: "Test",
-                    html: "<p>Test</p>",
+                    templateType: "simple",
+                    text: "Test",
                 })
             ).rejects.toThrow("Network error");
-        });
-    });
-
-    describe("sendInvoice", () => {
-        it("envoie une requête vers le bon endpoint", async () => {
-            (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-                new Response(JSON.stringify({ success: true, messageId: "inv-1" }), {
-                    status: 200,
-                })
-            );
-
-            await client.sendInvoice({
-                to: "meindonsa1999@gmail.com",
-                clientName: "Jean Dupont",
-                invoiceNumber: "FAC-20260716-0001",
-                amount: "50000",
-                pdfBase64: "base64content",
-            });
-
-            const calledUrl = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
-            expect(calledUrl).toBe(
-                "http://localhost:3000/api/mail/send-invoice"
-            );
         });
     });
 });

@@ -3,6 +3,13 @@ export interface MailClientConfig {
     apiKey: string;
 }
 
+export type TemplateType =
+    | "simple"
+    | "welcome"
+    | "reset-password"
+    | "forgot-password"
+    | "otp";
+
 export interface Attachment {
     filename: string;
     content: string; // base64
@@ -10,14 +17,16 @@ export interface Attachment {
 }
 
 export interface SendMailInput {
-    to: string | string[];
     from?: string;
+    to: string | string[];
     subject: string;
-    html?: string;
-    text?: string;
     cc?: string | string[];
     bcc?: string | string[];
-    attachments?: Attachment[];
+    attachment?: Attachment | Attachment[];
+    text?: string;
+    link?: string;
+    value?: string;
+    templateType?: TemplateType;
 }
 
 export interface SendMailResponse {

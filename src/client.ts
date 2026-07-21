@@ -10,14 +10,14 @@ export class MailClient {
         this.apiKey = config.apiKey;
     }
 
-    private async request<T>(path: string, body: unknown): Promise<T> {
-        const res = await fetch(`${this.baseUrl}${path}`, {
+    async send(input: SendMailInput): Promise<SendMailResponse> {
+        const res = await fetch(`${this.baseUrl}/api/mail`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "x-api-key": this.apiKey,
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify(input),
         });
 
         const data = await res.json();
@@ -30,20 +30,6 @@ export class MailClient {
             );
         }
 
-        return data as T;
-    }
-
-    async sendMail(input: SendMailInput): Promise<SendMailResponse> {
-        return this.request<SendMailResponse>("/api/mail/send", input);
-    }
-
-    async sendInvoice(input: {
-        to: string;
-        clientName: string;
-        invoiceNumber: string;
-        amount: string;
-        pdfBase64: string;
-    }): Promise<SendMailResponse> {
-        return this.request<SendMailResponse>("/api/mail/send-invoice", input);
+        return data as SendMailResponse;
     }
 }
